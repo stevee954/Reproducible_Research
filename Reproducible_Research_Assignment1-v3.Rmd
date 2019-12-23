@@ -1,0 +1,208 @@
+---
+title: 'Reproducible Research- Peer-graded Assignment: Course Project 1'
+author: "Steve Ellison"
+date: "December 1, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Reproducible Research-graded Assignment: Course Project 1
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.  Read statement and summary of initial file:
+
+```{r}
+act1 <- read.csv("activity.csv", header=TRUE)
+summary(act1)
+```
+From the above we see 2304 NA values, so we need to impute the missing values. There are lots of ways to do it.  I checked MICE and that was interesting although i did not fully understand what it was doing, so
+#i chose instead to use the IMPUTE statement that is part of HMISC package  to inmpute the MEAN for missing values. 
+
+I used LUBRIDATE package to format the date into DOW (day of week) for reporting purposes, and also transformed 'date' into a date object in 'date2' for time series reporting. Here is the code:
+```{r}
+library(Hmisc)
+
+act1$steps2 <- with(act1, impute(steps, mean))
+
+library(lubridate)
+
+act1$dow<-wday(act1$date,label=TRUE)
+
+act1$date2<-as.Date(act1$date, "%Y-%m-%d")
+
+act1$dayType <- ifelse(weekdays(as.Date(act1$date)) == "Saturday" | weekdays(as.Date(act1$date)) == "Sunday", "weekend", "weekday")
+
+```
+
+New summary of act1. Imputed column 'steps2' does not have any missing values:
+
+
+```{r}
+summary(act1)
+```
+
+
+The raw data is in five minute intervals, but we want the daily mean and medians, so I created 'my_agg', which aggregates step totals by day and is used for the mean and median plots.  Here is the code: 
+
+```{r}
+my_date<-data.frame(date=unique(act1$date2))
+
+
+mysteps<-data.frame(steps=as.integer(with(act1,tapply(steps,date2,sum))))
+
+mysteps$steps_imp<-as.integer(with(act1,tapply(steps2,date2,sum)))
+
+
+my_date$dayType <- ifelse(weekdays(as.Date(my_date$date)) == "Saturday" | weekdays(as.Date(my_date$date)) == "Sunday", "weekend", "weekday")
+
+my_agg<-cbind.data.frame(date=my_date$date,steps=mysteps$steps, steps_imp=mysteps$steps_imp, dayType=my_date$dayType)
+
+```
+
+
+
+The first part of what follows shows the views without imputed values.  Second part is views with the imputed values.  I conclude with an assessment of the impact of non-imputed vs imputed views.
+
+Note:  Instead of creating two datasets as indicated in the instructions I chose to simpy add column "steps2" with the imputed values to the original dataset.
+
+## Views WITHOUT Imputed Missing Values
+
+
+```{r}
+
+avg_steps_day <- aggregate(steps ~ date2, data = act1, FUN = sum, na.rm = TRUE)
+
+hist(avg_steps_day$steps,main="Frequency of Steps per Day",col="yellow",xlab='')
+```
+
+
+
+```{r}
+barplot(with(my_agg,round(tapply(steps,wday(date,label=TRUE),mean,na.rm=TRUE),digits=0)),main='Average Number of Steps per Day',col="yellow")
+```
+
+
+
+```{r}
+barplot(with(my_agg,round(tapply(steps,wday(date,label=TRUE),median,na.rm=TRUE),digits=0)),main='Median Number of Steps per Day',col="yellow")
+```
+
+
+
+```{r}
+barplot(with(act1,tapply(steps, date, sum)),main="Total Steps Each Day")
+```
+
+
+
+
+
+```{r}
+ggplot(data=my_agg, aes(x=date, y=steps)) +  geom_line(linetype = 1)+ggtitle("Steps by Day")+ theme(axis.title.x=element_blank())
+```
+
+
+
+The 5-minute interval that, on average, contains the maximum number of steps:
+
+
+```{r}
+avg_int<-with(act1,round(tapply(steps, interval, mean,na.rm=TRUE)), digits=2)
+df<-data.frame(avg_int)
+subset(df,avg_int==max(avg_int))
+```
+
+
+Weekend vs Weekday comparison:
+
+
+```{r}
+g<-ggplot(act1,aes(interval,steps))+geom_col()+facet_grid(.~dayType)+ggtitle("Weekday vs Weekend Comparison")
+g
+
+```
+
+
+## Views WITH Imputed Missing Values
+
+
+
+```{r}
+
+avg_steps_day <- aggregate(steps2 ~ date2, data = act1, FUN = sum, na.rm = TRUE)
+
+hist(avg_steps_day$steps,main="Frequency of Steps per Day",col="yellow",xlab='')
+```
+
+
+
+```{r}
+barplot(with(my_agg,round(tapply(steps_imp,wday(date,label=TRUE),mean,na.rm=TRUE),digits=0)),main='Average Number of Steps per Day',col="yellow")
+```
+
+
+
+```{r}
+barplot(with(my_agg,round(tapply(steps_imp,wday(date,label=TRUE),median,na.rm=TRUE),digits=0)),main='Median Number of Steps per Day',col="yellow")
+```
+
+
+
+```{r}
+barplot(with(act1,tapply(steps2, date, sum)),main="Total Steps Each Day")
+```
+
+
+
+
+
+```{r}
+ggplot(data=my_agg, aes(x=date, y=steps_imp)) +  geom_line(linetype = 1)+ggtitle("Steps by Day")+ theme(axis.title.x=element_blank())
+```
+
+
+
+The 5-minute interval that, on average, contains the maximum number of steps:
+
+
+```{r}
+avg_int<-with(act1,round(tapply(steps2, interval, mean,na.rm=TRUE)), digits=2)
+df<-data.frame(avg_int)
+subset(df,avg_int==max(avg_int))
+```
+
+
+Weekend vs Weekday comparison:
+
+
+```{r}
+g<-ggplot(act1,aes(interval,steps2))+geom_col()+facet_grid(.~dayType)+ggtitle("Weekday vs Weekend Comparison")
+g
+
+```
+
+
+## Assessment of Impact of Imputed Values
+
+
+Daily mean with NO imputation:
+
+```{r}
+with(my_agg,round(tapply(steps,wday(date,label=TRUE),mean,na.rm=TRUE),digits=0))
+
+```
+
+
+Daily mean WITH imputation:
+
+```{r}
+with(my_agg,round(tapply(steps_imp,wday(date,label=TRUE),mean,na.rm=TRUE),digits=0))
+
+```
+
+
+
+ 
+###From the above we see that the effect of imputation using the IMPUTE function was only mildly impactful, which I consider to be positive outcome.  An interesting follow-up would be to explore the effect of other methods.
